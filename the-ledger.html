@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F4F1E9;
+    --card: #FFFFFF;
+    --card-line: #E7E2D3;
+    --ink: #1F2321;
+    --ink-soft: #7A7568;
+    --ink-faint: #B4AE9C;
+    --win: #1E7B4D;
+    --win-tint: #E6F1EA;
+    --loss: #C0392B;
+    --loss-tint: #FBEAE7;
+    --pending: #B8860B;
+    --pending-tint: #FAF1DE;
+    --shadow: 0 1px 2px rgba(31,35,33,0.04), 0 6px 20px rgba(31,35,33,0.06);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper); color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 32px 20px 90px; }
+
+  header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark { width: 38px; height: 38px; border-radius: 50%; background: var(--ink); color: var(--paper);
+    display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; flex-shrink: 0; }
+  .brand h1 { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 600; margin: 0; letter-spacing: -0.2px; }
+  .brand p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+  .gear-btn { background: var(--card); border: 1px solid var(--card-line); border-radius: 10px; width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink); flex-shrink: 0;
+    box-shadow: var(--shadow); transition: transform 0.15s ease, background 0.15s ease; }
+  .gear-btn:hover { background: var(--card-line); }
+  .gear-btn:active { transform: scale(0.94); }
+  .gear-btn svg { width: 18px; height: 18px; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--pending); outline-offset: 2px; }
+
+  /* ---- Tabs ---- */
+  .tabs { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--card-line); border-radius: 12px; padding: 4px; margin-bottom: 24px; box-shadow: var(--shadow); }
+  .tab-btn { flex: 1; border: none; background: transparent; padding: 9px 6px; border-radius: 9px; font-size: 13px; font-weight: 600;
+    color: var(--ink-soft); cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+  .tab-btn.active { background: var(--ink); color: var(--paper); }
+
+  /* ---- Record display ---- */
+  .record-block { text-align: center; margin-bottom: 18px; }
+  .record-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; margin-bottom: 8px; }
+  .record-number { font-family: 'Fraunces', serif; font-size: 52px; font-weight: 600; line-height: 1; letter-spacing: -1px; }
+  .record-number .w { color: var(--win); }
+  .record-number .l { color: var(--loss); }
+  .record-number .dash { color: var(--ink-faint); font-size: 32px; padding: 0 8px; font-weight: 400; }
+  .record-sub { margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); }
+  .record-sub.won { color: var(--win); font-weight: 600; }
+  .record-sub.lost { color: var(--loss); font-weight: 600; }
+
+  /* ---- Period nav (shared by week/month/calendar) ---- */
+  .period-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px; }
+  .nav-btn { background: var(--card); border: 1px solid var(--card-line); border-radius: 7px; width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink); flex-shrink: 0; }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .nav-btn:hover:not(:disabled) { background: var(--card-line); }
+  .nav-btn svg { width: 13px; height: 13px; }
+  .period-label { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; min-width: 150px; text-align: center; }
+  .today-jump { font-size: 11px; color: var(--pending); text-decoration: underline; cursor: pointer; background: none; border: none; padding: 0; font-family: 'Inter', sans-serif; }
+
+  /* ---- Week strip ---- */
+  .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; margin-bottom: 22px; }
+  .day-tile { background: var(--card); border: 1px solid var(--card-line); border-radius: 12px; padding: 10px 4px 11px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 8px; cursor: default;
+    box-shadow: var(--shadow); transition: border-color 0.15s ease, transform 0.1s ease; }
+  .day-tile.selectable { cursor: pointer; }
+  .day-tile.selectable:hover { transform: translateY(-1px); }
+  .day-tile.is-selected { border: 2px solid var(--ink); padding: 9px 4px 10px; }
+  .day-tile.is-future { opacity: 0.45; }
+  .day-name { font-size: 10px; letter-spacing: 0.5px; color: var(--ink-soft); text-transform: uppercase; font-weight: 600; }
+  .day-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink); margin-top: -4px; }
+  .badge { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-weight: 600; font-size: 13px; }
+  .badge.win { background: var(--win); color: #fff; }
+  .badge.loss { background: var(--loss); color: #fff; }
+  .badge.pending { background: var(--pending-tint); color: var(--pending); border: 1.5px dashed var(--pending); font-family: 'IBM Plex Mono', monospace; font-size: 9px; }
+  .badge.empty { background: var(--paper); color: var(--ink-faint); border: 1.5px solid var(--card-line); font-size: 14px; }
+
+  /* ---- Today section ---- */
+  .section-title { display: flex; align-items: center; justify-content: space-between; margin: 0 0 12px; gap: 10px; flex-wrap: wrap; }
+  .day-nav { display: flex; align-items: center; gap: 6px; }
+  .selected-label { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; white-space: nowrap; }
+  .status-line { font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+  .status-line.win { color: var(--win); background: var(--win-tint); }
+  .status-line.loss { color: var(--loss); background: var(--loss-tint); }
+  .status-line.pending { color: var(--pending); background: var(--pending-tint); }
+  .status-line.empty { color: var(--ink-soft); background: var(--card); border: 1px solid var(--card-line); }
+
+  .ledger-card { background: var(--card); border: 1px solid var(--card-line); border-radius: 14px; padding: 4px 0; margin-bottom: 12px; box-shadow: var(--shadow); }
+  .goal-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--card-line); }
+  .goal-row:last-child { border-bottom: none; }
+  .check { width: 23px; height: 23px; flex-shrink: 0; border: 1.5px solid var(--ink-faint); border-radius: 7px; background: transparent;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.12s ease, border-color 0.12s ease; }
+  .check svg { width: 14px; height: 14px; opacity: 0; transition: opacity 0.12s ease; }
+  .check.checked { background: var(--win); border-color: var(--win); }
+  .check.checked svg { opacity: 1; }
+  .goal-text { flex: 1; font-size: 14.5px; line-height: 1.3; }
+  .goal-row.checked .goal-text { text-decoration: line-through; color: var(--ink-faint); }
+  .tag { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.3px; text-transform: uppercase; color: var(--ink-soft);
+    border: 1px solid var(--card-line); border-radius: 4px; padding: 2px 6px; flex-shrink: 0; white-space: nowrap; }
+  .del-btn { background: none; border: none; color: var(--ink-faint); cursor: pointer; font-size: 18px; padding: 2px 4px; flex-shrink: 0; line-height: 1; }
+  .del-btn:hover { color: var(--loss); }
+  .empty-note { padding: 24px 16px; text-align: center; color: var(--ink-soft); font-size: 13px; }
+  .add-row { display: flex; gap: 8px; padding: 12px 14px 14px; }
+  .add-row input { flex: 1; background: var(--paper); border: 1px solid var(--card-line); border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: 'Inter', sans-serif; color: var(--ink); }
+  .add-row button { background: var(--ink); color: var(--paper); border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0; transition: opacity 0.12s ease; }
+  .add-row button:hover { opacity: 0.85; }
+  .sub-note { font-size: 11.5px; color: var(--ink-faint); margin: 0 0 20px; padding: 0 4px; text-align: center; }
+
+  footer { text-align: center; margin-top: 34px; }
+  .reset-btn { background: none; border: none; color: var(--ink-faint); font-size: 11.5px; text-decoration: underline; cursor: pointer; }
+
+  /* ---- Calendar ---- */
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .cal-dow { font-size: 10px; letter-spacing: 0.5px; color: var(--ink-soft); text-transform: uppercase; font-weight: 600; text-align: center; padding-bottom: 4px; }
+  .cal-cell { aspect-ratio: 1; border-radius: 9px; background: var(--card); border: 1px solid var(--card-line); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px; cursor: default; box-shadow: var(--shadow); font-size: 11px; }
+  .cal-cell.selectable { cursor: pointer; transition: transform 0.1s ease; }
+  .cal-cell.selectable:hover { transform: translateY(-1px); }
+  .cal-cell.blank { background: transparent; border: none; box-shadow: none; }
+  .cal-cell.is-today { border: 2px solid var(--ink); }
+  .cal-num { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink); }
+  .cal-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .cal-dot.win { background: var(--win); }
+  .cal-dot.loss { background: var(--loss); }
+  .cal-dot.pending { background: var(--pending); }
+  .cal-dot.empty { background: var(--card-line); }
+  .cal-legend { display: flex; justify-content: center; gap: 16px; margin-top: 16px; font-size: 11px; color: var(--ink-soft); }
+  .cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .cal-legend .cal-dot { width: 7px; height: 7px; }
+
+  /* ---- Stats ---- */
+  .period-type-row { display: flex; gap: 4px; background: var(--card); border: 1px solid var(--card-line); border-radius: 10px; padding: 3px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .period-type-btn { flex: 1; border: none; background: transparent; padding: 7px 4px; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--ink-soft); cursor: pointer; }
+  .period-type-btn.active { background: var(--ink); color: var(--paper); }
+  .stat-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+  .stat-card { background: var(--card); border: 1px solid var(--card-line); border-radius: 14px; padding: 16px; text-align: center; box-shadow: var(--shadow); }
+  .stat-card-label { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; margin-bottom: 8px; }
+  .stat-card-number { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 600; line-height: 1; }
+  .stat-card-number .w { color: var(--win); }
+  .stat-card-number .l { color: var(--loss); }
+  .stat-card-sub { font-size: 11px; color: var(--ink-soft); margin-top: 6px; }
+  .heatmap-card { background: var(--card); border: 1px solid var(--card-line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 6px; }
+  .heatmap-title { font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; margin-bottom: 12px; }
+  .heatmap-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+  .heat-sq { width: 12px; height: 12px; border-radius: 3px; }
+  .heat-sq.win { background: var(--win); }
+  .heat-sq.loss { background: var(--loss); }
+  .heat-sq.pending { background: var(--pending); }
+  .heat-sq.empty { background: var(--card-line); }
+  .heat-sq.future { background: var(--paper); border: 1px solid var(--card-line); }
+
+  /* ---- Modal ---- */
+  .overlay { position: fixed; inset: 0; background: rgba(31,35,33,0.45); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--card); border-radius: 16px; max-width: 440px; width: 100%; padding: 24px; max-height: 85vh; overflow-y: auto; }
+  .modal h2 { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 600; margin: 0 0 18px; }
+  .field-group { margin-bottom: 20px; }
+  .field-group label { display: block; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; margin-bottom: 9px; }
+  .threshold-row { display: flex; align-items: center; gap: 10px; }
+  .threshold-row select, .threshold-row input[type=number] { background: var(--paper); border: 1px solid var(--card-line); border-radius: 8px; padding: 9px; font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink); }
+  .threshold-row input[type=number] { width: 70px; }
+  .day-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+  .day-chip { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600; border: 1.5px solid var(--card-line); background: var(--paper);
+    border-radius: 7px; padding: 6px 0; width: 34px; text-align: center; cursor: pointer; color: var(--ink-soft); transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease; }
+  .day-chip.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .recurring-list { margin-top: 10px; }
+  .recurring-item { padding: 10px 0; border-bottom: 1px solid var(--card-line); font-size: 13px; }
+  .recurring-item:last-child { border-bottom: none; }
+  .recurring-item-top { display: flex; align-items: center; gap: 8px; }
+  .recurring-item-top span { flex: 1; }
+  .recurring-item.inactive .recurring-item-top span { color: var(--ink-faint); text-decoration: line-through; }
+  .recurring-schedule { font-size: 10.5px; color: var(--ink-faint); margin-top: 3px; }
+  .toggle-btn, .edit-btn { font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 600; border: 1px solid var(--card-line); background: var(--paper);
+    border-radius: 6px; padding: 4px 8px; cursor: pointer; color: var(--ink); flex-shrink: 0; }
+  .recurring-edit-chips { display: none; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+  .recurring-edit-chips.open { display: flex; }
+  .modal-close { width: 100%; margin-top: 4px; background: var(--ink); color: var(--paper); border: none; border-radius: 10px; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .loading-note { text-align: center; color: var(--ink-soft); font-size: 13px; padding: 50px 0; }
+  @media (max-width: 400px) { .record-number { font-size: 42px; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="brand-mark">L</div>
+        <div><h1>The Ledger</h1><p>win the day &middot; win the week</p></div>
+      </div>
+      <button class="gear-btn" id="settingsBtn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></svg>
+      </button>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn" data-tab="ledger">Ledger</button>
+      <button class="tab-btn" data-tab="calendar">Calendar</button>
+      <button class="tab-btn" data-tab="stats">Stats</button>
+    </div>
+
+    <div id="app"><div class="loading-note">Opening the ledger&hellip;</div></div>
+
+    <footer><button class="reset-btn" id="resetBtn">clear all data</button></footer>
+  </div>
+
+  <div class="overlay" id="settingsOverlay">
+    <div class="modal">
+      <h2>Settings</h2>
+      <div class="field-group">
+        <label>Win a day when you complete</label>
+        <div class="threshold-row">
+          <select id="dayThresholdType">
+            <option value="percent">at least this % of goals</option>
+            <option value="count">at least this many goals</option>
+          </select>
+          <input type="number" id="dayThresholdValue" min="1" max="100" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Win the week when you win at least this many days (out of 7)</label>
+        <div class="threshold-row"><input type="number" id="weekThresholdValue" min="1" max="7" style="width:70px" /></div>
+      </div>
+      <div class="field-group">
+        <label>Recurring goals</label>
+        <div class="recurring-list" id="recurringList"></div>
+        <div style="padding:14px 0 8px;">
+          <input type="text" id="newRecurringInput" placeholder="Add a recurring goal&hellip;" maxlength="120"
+            style="width:100%; background: var(--paper); border: 1px solid var(--card-line); border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: 'Inter', sans-serif; color: var(--ink);" />
+        </div>
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10.5px; color: var(--ink-soft); margin-bottom:6px;">Which days? (defaults to every day)</div>
+          <div class="day-chips" id="newRecurringChips"></div>
+        </div>
+        <button id="addRecurringBtn" style="width:100%; background: var(--ink); color: var(--paper); border: none; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer;">Add goal</button>
+      </div>
+      <button class="modal-close" id="closeSettings">Done</button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const DAY_NAMES_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MONTH_NAMES_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const app = document.getElementById('app');
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function toDateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+  function fromDateStr(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
+  function todayStr() { return toDateStr(new Date()); }
+  function weekdayIdx(d) { return (d.getDay() + 6) % 7; }
+  function addDaysStr(dateStr, n) { const d = fromDateStr(dateStr); d.setDate(d.getDate() + n); return toDateStr(d); }
+  function mondayOfStr(dateStr) { const d = fromDateStr(dateStr); d.setDate(d.getDate() - weekdayIdx(d)); return toDateStr(d); }
+  function weekDatesFrom(mondayStr) { const out = []; for (let i=0;i<7;i++) out.push(addDaysStr(mondayStr,i)); return out; }
+  function daysInMonth(y,m) { return new Date(y, m+1, 0).getDate(); }
+
+  let state = {
+    recurring: [],
+    settings: { dayThresholdType: 'percent', dayThresholdValue: 70, weekThresholdValue: 4 },
+    dayCache: {},
+    dayIndex: {},
+    activeTab: 'ledger',
+    selectedDate: todayStr(),
+    viewedWeekMonday: mondayOfStr(todayStr()),
+    calYear: new Date().getFullYear(),
+    calMonth: new Date().getMonth(),
+    statsType: 'month',
+    statsYear: new Date().getFullYear(),
+    statsMonth: new Date().getMonth(),
+    statsQuarter: Math.floor(new Date().getMonth()/3),
+    newRecurringDays: [0,1,2,3,4,5,6],
+    editingRecurringId: null
+  };
+
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+
+  async function loadCore() {
+    try { const r = await window.storage.get('recurring-goals'); state.recurring = r ? JSON.parse(r.value) : []; } catch (e) { state.recurring = []; }
+    try { const r = await window.storage.get('settings'); state.settings = r ? JSON.parse(r.value) : state.settings; } catch (e) {}
+    try { const r = await window.storage.get('day-index'); state.dayIndex = r ? JSON.parse(r.value) : {}; } catch (e) { state.dayIndex = {}; }
+  }
+  async function saveRecurring() { try { await window.storage.set('recurring-goals', JSON.stringify(state.recurring)); } catch (e) { console.error(e); } }
+  async function saveSettings() { try { await window.storage.set('settings', JSON.stringify(state.settings)); } catch (e) { console.error(e); } }
+  async function saveIndex() { try { await window.storage.set('day-index', JSON.stringify(state.dayIndex)); } catch (e) { console.error(e); } }
+
+  async function loadDay(dateStr) {
+    if (state.dayCache[dateStr]) return state.dayCache[dateStr];
+    let data = { oneoff: [], completed: {} };
+    try { const r = await window.storage.get('day:' + dateStr); if (r) data = JSON.parse(r.value); } catch (e) {}
+    state.dayCache[dateStr] = data;
+    return data;
+  }
+
+  function goalsForDay(dateStr) {
+    const day = state.dayCache[dateStr] || { oneoff: [], completed: {} };
+    const wd = weekdayIdx(fromDateStr(dateStr));
+    const recurring = state.recurring.filter(g => g.active && (!g.days || g.days.length === 0 || g.days.includes(wd)))
+      .map(g => ({ id: g.id, text: g.text, type: 'recurring' }));
+    const oneoff = (day.oneoff || []).map(g => ({ id: g.id, text: g.text, type: 'oneoff' }));
+    return recurring.concat(oneoff);
+  }
+
+  function recurringCountForWeekday(wd) {
+    return state.recurring.filter(g => g.active && (!g.days || g.days.length === 0 || g.days.includes(wd))).length;
+  }
+
+  async function saveDay(dateStr) {
+    try { await window.storage.set('day:' + dateStr, JSON.stringify(state.dayCache[dateStr])); } catch (e) { console.error(e); }
+    const goals = goalsForDay(dateStr);
+    const day = state.dayCache[dateStr] || { completed: {} };
+    const completed = goals.filter(g => day.completed && day.completed[g.id]).length;
+    state.dayIndex[dateStr] = { completed, total: goals.length };
+    await saveIndex();
+  }
+
+  // fast result using index (falls back to dynamic estimate for untouched days)
+  function dayResultFast(dateStr) {
+    const today = todayStr();
+    if (dateStr > today) return { status: 'empty', completed: 0, total: 0 };
+    const idx = state.dayIndex[dateStr];
+    let completed, total;
+    if (idx) { completed = idx.completed; total = idx.total; }
+    else { completed = 0; total = recurringCountForWeekday(weekdayIdx(fromDateStr(dateStr))); }
+    if (total === 0) return { status: 'empty', completed, total };
+    const t = state.settings;
+    const win = t.dayThresholdType === 'percent' ? (completed/total)*100 >= t.dayThresholdValue : completed >= t.dayThresholdValue;
+    if (dateStr === today) return { status: 'pending', completed, total, willWin: win };
+    return { status: win ? 'win' : 'loss', completed, total };
+  }
+
+  function weekResultFast(mondayStr) {
+    const dates = weekDatesFrom(mondayStr);
+    const today = todayStr();
+    let wins = 0, losses = 0, hasFuture = false, hasToday = false;
+    dates.forEach(ds => {
+      if (ds > today) { hasFuture = true; return; }
+      const r = dayResultFast(ds);
+      if (r.total === 0) return;
+      if (ds === today) { hasToday = true; if (r.willWin) wins++; else losses++; return; }
+      if (r.status === 'win') wins++; else losses++;
+    });
+    const need = state.settings.weekThresholdValue;
+    let status = 'in-progress';
+    if (wins >= need) status = 'win';
+    else if (losses > 7 - need) status = 'loss';
+    else if (!hasFuture && !hasToday) status = wins >= need ? 'win' : 'loss';
+    return { wins, losses, status, hasFuture, hasToday };
+  }
+
+  async function ensureIndexBackfilled() {
+    try {
+      const listing = await window.storage.list('day:');
+      if (!listing || !listing.keys) return;
+      let changed = false;
+      for (const key of listing.keys) {
+        const ds = key.slice(4);
+        if (state.dayIndex[ds]) continue;
+        try {
+          const r = await window.storage.get(key);
+          const data = r ? JSON.parse(r.value) : { oneoff: [], completed: {} };
+          state.dayCache[ds] = data;
+          const goals = goalsForDay(ds);
+          const completed = goals.filter(g => data.completed && data.completed[g.id]).length;
+          state.dayIndex[ds] = { completed, total: goals.length };
+          changed = true;
+        } catch (e) {}
+      }
+      if (changed) await saveIndex();
+    } catch (e) {}
+  }
+
+  function escapeHtml(s) { const div = document.createElement('div'); div.textContent = s; return div.innerHTML; }
+  function formatSelectedLabel(dateStr) {
+    if (dateStr === todayStr()) return 'Today';
+    const d = fromDateStr(dateStr);
+    return DAY_NAMES_FULL[weekdayIdx(d)] + ', ' + MONTH_NAMES[d.getMonth()] + ' ' + d.getDate();
+  }
+  function formatWeekRangeLabel(mondayStr) {
+    if (mondayStr === mondayOfStr(todayStr())) return 'This Week';
+    const start = fromDateStr(mondayStr);
+    const end = fromDateStr(addDaysStr(mondayStr, 6));
+    if (start.getMonth() === end.getMonth()) return `${MONTH_NAMES[start.getMonth()]} ${start.getDate()}\u2013${end.getDate()}`;
+    return `${MONTH_NAMES[start.getMonth()]} ${start.getDate()} \u2013 ${MONTH_NAMES[end.getMonth()]} ${end.getDate()}`;
+  }
+
+  /* ====================== TAB SWITCHING ====================== */
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => { state.activeTab = btn.getAttribute('data-tab'); renderTabs(); render(); });
+  });
+  function renderTabs() {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === state.activeTab));
+  }
+
+  /* ====================== MAIN RENDER ROUTER ====================== */
+  function render() {
+    if (state.activeTab === 'ledger') renderLedger();
+    else if (state.activeTab === 'calendar') renderCalendar();
+    else renderStats();
+  }
+
+  /* ====================== LEDGER TAB ====================== */
+  function renderLedger() {
+    const monday = state.viewedWeekMonday;
+    const dates = weekDatesFrom(monday);
+    const today = todayStr();
+    const wr = weekResultFast(monday);
+    let weekSubClass = '', weekLabel = `need ${state.settings.weekThresholdValue}/7 to win`;
+    if (wr.status === 'win') { weekSubClass = 'won'; weekLabel = 'Week won'; }
+    else if (wr.status === 'loss') { weekSubClass = 'lost'; weekLabel = 'Week lost'; }
+
+    const canGoNextWeek = monday < mondayOfStr(today);
+
+    const stampHtml = dates.map(ds => {
+      const d = fromDateStr(ds);
+      const isToday = ds === today;
+      const isFuture = ds > today;
+      const isSelected = ds === state.selectedDate;
+      const r = dayResultFast(ds);
+      let badgeClass = 'empty', badgeText = '&middot;';
+      if (!isFuture) {
+        if (isToday) {
+          if (r.total === 0) { badgeClass = 'empty'; badgeText = '&middot;'; }
+          else if (r.willWin) { badgeClass = 'win'; badgeText = 'W'; }
+          else { badgeClass = 'pending'; badgeText = r.completed + '/' + r.total; }
+        } else if (r.status === 'win') { badgeClass = 'win'; badgeText = 'W'; }
+        else if (r.status === 'loss') { badgeClass = 'loss'; badgeText = 'L'; }
+      }
+      return `<div class="day-tile ${!isFuture ? 'selectable' : 'is-future'} ${isSelected ? 'is-selected' : ''}" data-date="${ds}" data-selectable="${!isFuture}">
+        <div class="day-name">${DAY_NAMES[weekdayIdx(d)]}</div>
+        <div class="badge ${badgeClass}">${badgeText}</div>
+        <div class="day-num">${d.getDate()}</div>
+      </div>`;
+    }).join('');
+
+    const sel = state.selectedDate;
+    const goals = goalsForDay(sel);
+    const day = state.dayCache[sel] || { completed: {} };
+    const selFast = dayResultFast(sel);
+    let statusClass = 'empty', statusText = 'No goals set';
+    const selCompleted = goals.filter(g => day.completed && day.completed[g.id]).length;
+    if (goals.length > 0) {
+      if (sel === today) {
+        const win = state.settings.dayThresholdType === 'percent' ? (selCompleted/goals.length)*100 >= state.settings.dayThresholdValue : selCompleted >= state.settings.dayThresholdValue;
+        statusText = win ? `Winning &middot; ${selCompleted}/${goals.length}` : `${selCompleted}/${goals.length} complete`;
+        statusClass = win ? 'win' : 'pending';
+      } else {
+        const win = state.settings.dayThresholdType === 'percent' ? (selCompleted/goals.length)*100 >= state.settings.dayThresholdValue : selCompleted >= state.settings.dayThresholdValue;
+        statusText = win ? `Won &middot; ${selCompleted}/${goals.length}` : `Lost &middot; ${selCompleted}/${goals.length}`;
+        statusClass = win ? 'win' : 'loss';
+      }
+    }
+
+    const goalRows = goals.length === 0
+      ? `<div class="empty-note">No goals scheduled for this day. Add a one-off below, or set recurring goals in Settings.</div>`
+      : goals.map(g => {
+          const checked = !!(day.completed && day.completed[g.id]);
+          return `<div class="goal-row ${checked ? 'checked' : ''}">
+            <button class="check ${checked ? 'checked' : ''}" data-goal="${g.id}" aria-label="Mark ${checked ? 'incomplete' : 'complete'}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <div class="goal-text">${escapeHtml(g.text)}</div>
+            <div class="tag">${g.type === 'recurring' ? 'daily' : 'one-off'}</div>
+            ${g.type === 'oneoff' ? `<button class="del-btn" data-del="${g.id}" aria-label="Remove goal">&times;</button>` : ''}
+          </div>`;
+        }).join('');
+
+    const canGoNextDay = sel < today;
+
+    app.innerHTML = `
+      <div class="record-block">
+        <div class="record-label">${formatWeekRangeLabel(monday)}</div>
+        <div class="record-number"><span class="w">${wr.wins}W</span><span class="dash">&ndash;</span><span class="l">${wr.losses}L</span></div>
+        <div class="record-sub ${weekSubClass}">${weekLabel}</div>
+      </div>
+
+      <div class="period-nav">
+        <button class="nav-btn" id="prevWeek" aria-label="Previous week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button class="nav-btn" id="nextWeek" ${!canGoNextWeek ? 'disabled' : ''} aria-label="Next week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        ${monday !== mondayOfStr(today) ? `<button class="today-jump" id="jumpThisWeek">this week</button>` : ''}
+      </div>
+
+      <div class="week-strip">${stampHtml}</div>
+
+      <div class="section-title">
+        <div class="day-nav">
+          <span class="selected-label">${formatSelectedLabel(sel)}</span>
+        </div>
+        <span class="status-line ${statusClass}">${statusText}</span>
+      </div>
+
+      <div class="ledger-card">
+        ${goalRows}
+        <div class="add-row">
+          <input type="text" id="newOneoffInput" placeholder="Add a one-off goal for this day&hellip;" maxlength="120" />
+          <button id="addOneoffBtn">Add</button>
+        </div>
+      </div>
+      <div class="sub-note">Tap any past day above to review or fix what you logged.</div>
+    `;
+
+    app.querySelectorAll('[data-goal]').forEach(btn => btn.addEventListener('click', () => toggleGoal(btn.getAttribute('data-goal'))));
+    app.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => deleteOneoff(btn.getAttribute('data-del'))));
+    app.querySelectorAll('.day-tile[data-selectable="true"]').forEach(t => t.addEventListener('click', () => selectDate(t.getAttribute('data-date'))));
+    document.getElementById('addOneoffBtn').addEventListener('click', addOneoff);
+    document.getElementById('newOneoffInput').addEventListener('keydown', e => { if (e.key === 'Enter') addOneoff(); });
+    document.getElementById('prevWeek').addEventListener('click', () => { state.viewedWeekMonday = addDaysStr(state.viewedWeekMonday, -7); renderLedger(); });
+    const nextWeekBtn = document.getElementById('nextWeek');
+    if (nextWeekBtn) nextWeekBtn.addEventListener('click', () => { if (canGoNextWeek) { state.viewedWeekMonday = addDaysStr(state.viewedWeekMonday, 7); renderLedger(); } });
+    const jumpBtn = document.getElementById('jumpThisWeek');
+    if (jumpBtn) jumpBtn.addEventListener('click', () => { state.viewedWeekMonday = mondayOfStr(today); selectDate(today); });
+  }
+
+  async function selectDate(dateStr) {
+    if (dateStr > todayStr()) return;
+    await loadDay(dateStr);
+    state.selectedDate = dateStr;
+    state.viewedWeekMonday = mondayOfStr(dateStr);
+    renderLedger();
+  }
+
+  async function toggleGoal(goalId) {
+    const sel = state.selectedDate;
+    const day = state.dayCache[sel] || { oneoff: [], completed: {} };
+    day.completed = day.completed || {};
+    day.completed[goalId] = !day.completed[goalId];
+    state.dayCache[sel] = day;
+    renderLedger();
+    await saveDay(sel);
+  }
+  async function addOneoff() {
+    const input = document.getElementById('newOneoffInput');
+    const text = input.value.trim();
+    if (!text) return;
+    const sel = state.selectedDate;
+    const day = state.dayCache[sel] || { oneoff: [], completed: {} };
+    day.oneoff = day.oneoff || [];
+    day.oneoff.push({ id: uid(), text });
+    state.dayCache[sel] = day;
+    renderLedger();
+    const el = document.getElementById('newOneoffInput'); if (el) el.focus();
+    await saveDay(sel);
+  }
+  async function deleteOneoff(goalId) {
+    const sel = state.selectedDate;
+    const day = state.dayCache[sel] || { oneoff: [], completed: {} };
+    day.oneoff = (day.oneoff || []).filter(g => g.id !== goalId);
+    if (day.completed) delete day.completed[goalId];
+    state.dayCache[sel] = day;
+    renderLedger();
+    await saveDay(sel);
+  }
+
+  /* ====================== CALENDAR TAB ====================== */
+  function renderCalendar() {
+    const today = todayStr();
+    const y = state.calYear, m = state.calMonth;
+    const firstOfMonth = new Date(y, m, 1);
+    const startOffset = weekdayIdx(firstOfMonth);
+    const numDays = daysInMonth(y, m);
+    const isCurrentMonth = (y === new Date().getFullYear() && m === new Date().getMonth());
+    const canGoNext = !(y > new Date().getFullYear() || (y === new Date().getFullYear() && m >= new Date().getMonth()));
+
+    let cells = '';
+    for (let i = 0; i < startOffset; i++) cells += `<div class="cal-cell blank"></div>`;
+    for (let day = 1; day <= numDays; day++) {
+      const ds = `${y}-${pad(m+1)}-${pad(day)}`;
+      const isFuture = ds > today;
+      const isToday = ds === today;
+      const r = dayResultFast(ds);
+      let dotClass = 'empty';
+      if (!isFuture && r.total > 0) {
+        if (isToday) dotClass = r.willWin ? 'win' : 'pending';
+        else dotClass = r.status === 'win' ? 'win' : 'loss';
+      }
+      cells += `<div class="cal-cell ${!isFuture ? 'selectable' : ''} ${isToday ? 'is-today' : ''}" data-date="${ds}" data-selectable="${!isFuture}">
+        <div class="cal-num">${day}</div>
+        ${!isFuture ? `<div class="cal-dot ${dotClass}"></div>` : ''}
+      </div>`;
+    }
+
+    const dowHtml = DAY_NAMES.map(n => `<div class="cal-dow">${n}</div>`).join('');
+
+    app.innerHTML = `
+      <div class="period-nav">
+        <button class="nav-btn" id="prevMonth" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <span class="period-label">${MONTH_NAMES_FULL[m]} ${y}</span>
+        <button class="nav-btn" id="nextMonth" ${!canGoNext ? 'disabled' : ''} aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        ${!isCurrentMonth ? `<button class="today-jump" id="jumpThisMonth">today</button>` : ''}
+      </div>
+      <div class="cal-grid">${dowHtml}${cells}</div>
+      <div class="cal-legend">
+        <span><span class="cal-dot win"></span>Won</span>
+        <span><span class="cal-dot loss"></span>Lost</span>
+        <span><span class="cal-dot pending"></span>In progress</span>
+        <span><span class="cal-dot empty"></span>No goals</span>
+      </div>
+    `;
+
+    document.getElementById('prevMonth').addEventListener('click', () => {
+      state.calMonth--; if (state.calMonth < 0) { state.calMonth = 11; state.calYear--; }
+      renderCalendar();
+    });
+    const nextBtn = document.getElementById('nextMonth');
+    if (nextBtn) nextBtn.addEventListener('click', () => {
+      if (!canGoNext) return;
+      state.calMonth++; if (state.calMonth > 11) { state.calMonth = 0; state.calYear++; }
+      renderCalendar();
+    });
+    const jumpBtn = document.getElementById('jumpThisMonth');
+    if (jumpBtn) jumpBtn.addEventListener('click', () => { state.calYear = new Date().getFullYear(); state.calMonth = new Date().getMonth(); renderCalendar(); });
+    app.querySelectorAll('.cal-cell[data-selectable="true"]').forEach(c => c.addEventListener('click', async () => {
+      const ds = c.getAttribute('data-date');
+      await loadDay(ds);
+      state.selectedDate = ds;
+      state.viewedWeekMonday = mondayOfStr(ds);
+      state.activeTab = 'ledger';
+      renderTabs();
+      renderLedger();
+    }));
+  }
+
+  /* ====================== STATS TAB ====================== */
+  function statsPeriodRange() {
+    if (state.statsType === 'month') {
+      const y = state.statsYear, m = state.statsMonth;
+      return { start: `${y}-${pad(m+1)}-01`, end: `${y}-${pad(m+1)}-${pad(daysInMonth(y,m))}`, label: `${MONTH_NAMES_FULL[m]} ${y}` };
+    }
+    if (state.statsType === 'season') {
+      const y = state.statsYear, q = state.statsQuarter;
+      const startMonth = q * 3, endMonth = startMonth + 2;
+      return { start: `${y}-${pad(startMonth+1)}-01`, end: `${y}-${pad(endMonth+1)}-${pad(daysInMonth(y,endMonth))}`, label: `Q${q+1} ${y}` };
+    }
+    const y = state.statsYear;
+    return { start: `${y}-01-01`, end: `${y}-12-31`, label: `${y}` };
+  }
+
+  function canGoNextPeriod() {
+    const now = new Date();
+    if (state.statsType === 'month') return !(state.statsYear > now.getFullYear() || (state.statsYear === now.getFullYear() && state.statsMonth >= now.getMonth()));
+    if (state.statsType === 'season') { const curQ = Math.floor(now.getMonth()/3); return !(state.statsYear > now.getFullYear() || (state.statsYear === now.getFullYear() && state.statsQuarter >= curQ)); }
+    return state.statsYear < now.getFullYear();
+  }
+  function goPeriod(dir) {
+    if (state.statsType === 'month') { state.statsMonth += dir; if (state.statsMonth > 11) { state.statsMonth = 0; state.statsYear++; } if (state.statsMonth < 0) { state.statsMonth = 11; state.statsYear--; } }
+    else if (state.statsType === 'season') { state.statsQuarter += dir; if (state.statsQuarter > 3) { state.statsQuarter = 0; state.statsYear++; } if (state.statsQuarter < 0) { state.statsQuarter = 3; state.statsYear--; } }
+    else { state.statsYear += dir; }
+  }
+
+  function renderStats() {
+    const today = todayStr();
+    const { start, end, label } = statsPeriodRange();
+    const effectiveEnd = end > today ? today : end;
+
+    // day tally
+    let dayWins = 0, dayLosses = 0, dayLogged = 0;
+    let cursor = start;
+    const heatCells = [];
+    while (cursor <= end) {
+      const isFuture = cursor > today;
+      if (!isFuture) {
+        const r = dayResultFast(cursor);
+        if (r.total > 0) {
+          dayLogged++;
+          if (cursor === today) { if (r.willWin) { dayWins++; heatCells.push('pending'); } else { heatCells.push('pending'); } }
+          else if (r.status === 'win') { dayWins++; heatCells.push('win'); }
+          else { dayLosses++; heatCells.push('loss'); }
+        } else heatCells.push('empty');
+      } else heatCells.push('future');
+      cursor = addDaysStr(cursor, 1);
+    }
+
+    // week tally
+    let weekWins = 0, weekLosses = 0, weekInProgress = 0;
+    let m = mondayOfStr(start);
+    while (m <= end) {
+      if (m >= start) {
+        const wr = weekResultFast(m);
+        if (wr.status === 'win') weekWins++;
+        else if (wr.status === 'loss') weekLosses++;
+        else weekInProgress++;
+      }
+      m = addDaysStr(m, 7);
+    }
+
+    const dayWinRate = dayLogged > 0 ? Math.round((dayWins / dayLogged) * 100) : null;
+
+    app.innerHTML = `
+      <div class="period-type-row">
+        <button class="period-type-btn" data-ptype="month">Month</button>
+        <button class="period-type-btn" data-ptype="season">Season</button>
+        <button class="period-type-btn" data-ptype="year">Year</button>
+      </div>
+      <div class="period-nav">
+        <button class="nav-btn" id="prevPeriod" aria-label="Previous period"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <span class="period-label">${label}</span>
+        <button class="nav-btn" id="nextPeriod" ${!canGoNextPeriod() ? 'disabled' : ''} aria-label="Next period"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-card-label">Days</div>
+          <div class="stat-card-number"><span class="w">${dayWins}W</span> <span class="l">${dayLosses}L</span></div>
+          <div class="stat-card-sub">${dayWinRate !== null ? dayWinRate + '% win rate' : 'no goals logged'}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-label">Weeks</div>
+          <div class="stat-card-number"><span class="w">${weekWins}W</span> <span class="l">${weekLosses}L</span></div>
+          <div class="stat-card-sub">${weekInProgress > 0 ? weekInProgress + ' week in progress' : (weekWins + weekLosses) + ' decided'}</div>
+        </div>
+      </div>
+
+      <div class="heatmap-card">
+        <div class="heatmap-title">Day by day</div>
+        <div class="heatmap-grid">${heatCells.map(c => `<div class="heat-sq ${c}"></div>`).join('')}</div>
+      </div>
+    `;
+
+    document.querySelectorAll('.period-type-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-ptype') === state.statsType);
+      b.addEventListener('click', () => { state.statsType = b.getAttribute('data-ptype'); renderStats(); });
+    });
+    document.getElementById('prevPeriod').addEventListener('click', () => { goPeriod(-1); renderStats(); });
+    const nextBtn = document.getElementById('nextPeriod');
+    if (nextBtn) nextBtn.addEventListener('click', () => { if (canGoNextPeriod()) { goPeriod(1); renderStats(); } });
+  }
+
+  /* ====================== SETTINGS MODAL ====================== */
+  const overlay = document.getElementById('settingsOverlay');
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  document.getElementById('closeSettings').addEventListener('click', () => overlay.classList.remove('open'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+
+  function openSettings() {
+    document.getElementById('dayThresholdType').value = state.settings.dayThresholdType;
+    document.getElementById('dayThresholdValue').value = state.settings.dayThresholdValue;
+    document.getElementById('weekThresholdValue').value = state.settings.weekThresholdValue;
+    state.newRecurringDays = [0,1,2,3,4,5,6];
+    renderNewRecurringChips();
+    renderRecurringList();
+    overlay.classList.add('open');
+  }
+  function chipsHtml(selectedDays, dataAttr) {
+    return DAY_NAMES.map((name, i) => `<button type="button" class="day-chip ${selectedDays.includes(i) ? 'on' : ''}" data-${dataAttr}="${i}">${name}</button>`).join('');
+  }
+  function renderNewRecurringChips() {
+    const el = document.getElementById('newRecurringChips');
+    el.innerHTML = chipsHtml(state.newRecurringDays, 'newday');
+    el.querySelectorAll('[data-newday]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const i = parseInt(chip.getAttribute('data-newday'), 10);
+        const idx = state.newRecurringDays.indexOf(i);
+        if (idx >= 0) state.newRecurringDays.splice(idx, 1); else state.newRecurringDays.push(i);
+        renderNewRecurringChips();
+      });
+    });
+  }
+  function scheduleLabel(days) {
+    if (!days || days.length === 0 || days.length === 7) return 'Every day';
+    if (days.length === 5 && [0,1,2,3,4].every(d => days.includes(d))) return 'Weekdays';
+    if (days.length === 2 && days.includes(5) && days.includes(6)) return 'Weekends';
+    return days.slice().sort((a,b)=>a-b).map(i => DAY_NAMES[i]).join(', ');
+  }
+  function renderRecurringList() {
+    const list = document.getElementById('recurringList');
+    if (state.recurring.length === 0) { list.innerHTML = `<div style="font-size:13px;color:var(--ink-soft);padding:6px 0;">No recurring goals yet.</div>`; return; }
+    list.innerHTML = state.recurring.map(g => {
+      const days = g.days || [0,1,2,3,4,5,6];
+      const isEditing = state.editingRecurringId === g.id;
+      return `
+      <div class="recurring-item ${g.active ? '' : 'inactive'}">
+        <div class="recurring-item-top">
+          <span>${escapeHtml(g.text)}</span>
+          <button class="edit-btn" data-edit="${g.id}">${isEditing ? 'Close' : 'Days'}</button>
+          <button class="toggle-btn" data-toggle="${g.id}">${g.active ? 'Pause' : 'Resume'}</button>
+          <button class="del-btn" data-delrec="${g.id}" aria-label="Delete recurring goal">&times;</button>
+        </div>
+        <div class="recurring-schedule">${scheduleLabel(days)}</div>
+        <div class="recurring-edit-chips ${isEditing ? 'open' : ''}" data-chipset="${g.id}">${chipsHtml(days, 'editday-' + g.id)}</div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('[data-toggle]').forEach(btn => btn.addEventListener('click', async () => {
+      const g = state.recurring.find(x => x.id === btn.getAttribute('data-toggle'));
+      if (g) { g.active = !g.active; await saveRecurring(); renderRecurringList(); render(); }
+    }));
+    list.querySelectorAll('[data-delrec]').forEach(btn => btn.addEventListener('click', async () => {
+      state.recurring = state.recurring.filter(x => x.id !== btn.getAttribute('data-delrec'));
+      await saveRecurring(); renderRecurringList(); render();
+    }));
+    list.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-edit');
+      state.editingRecurringId = state.editingRecurringId === id ? null : id;
+      renderRecurringList();
+    }));
+    state.recurring.forEach(g => {
+      list.querySelectorAll(`[data-editday-${g.id}]`).forEach(chip => {
+        chip.addEventListener('click', async () => {
+          const i = parseInt(chip.getAttribute(`data-editday-${g.id}`), 10);
+          const days = g.days ? g.days.slice() : [0,1,2,3,4,5,6];
+          const idx = days.indexOf(i);
+          if (idx >= 0) days.splice(idx, 1); else days.push(i);
+          g.days = days;
+          await saveRecurring();
+          renderRecurringList();
+          render();
+        });
+      });
+    });
+  }
+  document.getElementById('addRecurringBtn').addEventListener('click', async () => {
+    const input = document.getElementById('newRecurringInput');
+    const text = input.value.trim();
+    if (!text) return;
+    state.recurring.push({ id: uid(), text, active: true, days: state.newRecurringDays.slice() });
+    input.value = '';
+    state.newRecurringDays = [0,1,2,3,4,5,6];
+    renderNewRecurringChips();
+    await saveRecurring();
+    renderRecurringList();
+    render();
+  });
+  document.getElementById('newRecurringInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('addRecurringBtn').click(); });
+
+  ['dayThresholdType','dayThresholdValue','weekThresholdValue'].forEach(id => {
+    document.getElementById(id).addEventListener('change', async () => {
+      state.settings.dayThresholdType = document.getElementById('dayThresholdType').value;
+      let dv = parseInt(document.getElementById('dayThresholdValue').value, 10);
+      let wv = parseInt(document.getElementById('weekThresholdValue').value, 10);
+      if (isNaN(dv) || dv < 1) dv = state.settings.dayThresholdType === 'percent' ? 70 : 1;
+      if (isNaN(wv) || wv < 1) wv = 4;
+      if (wv > 7) wv = 7;
+      state.settings.dayThresholdValue = dv;
+      state.settings.weekThresholdValue = wv;
+      await saveSettings();
+      render();
+    });
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', async () => {
+    if (!confirm('This clears every goal and every recorded day. Are you sure?')) return;
+    try {
+      const r = await window.storage.list('day:');
+      if (r && r.keys) for (const k of r.keys) await window.storage.delete(k);
+      await window.storage.delete('recurring-goals');
+      await window.storage.delete('settings');
+      await window.storage.delete('day-index');
+    } catch (e) { console.error(e); }
+    state.recurring = [];
+    state.settings = { dayThresholdType: 'percent', dayThresholdValue: 70, weekThresholdValue: 4 };
+    state.dayCache = {};
+    state.dayIndex = {};
+    state.selectedDate = todayStr();
+    state.viewedWeekMonday = mondayOfStr(todayStr());
+    await init();
+  });
+
+  async function init() {
+    app.innerHTML = `<div class="loading-note">Opening the ledger&hellip;</div>`;
+    renderTabs();
+    await loadCore();
+    await ensureIndexBackfilled();
+    await loadDay(state.selectedDate);
+    render();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
